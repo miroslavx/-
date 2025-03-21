@@ -1,0 +1,2115 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Симулятор АЭС "РБМК-1000"</title>
+    <style>
+        :root {
+            --panel-color: #4a4a4a;
+            --panel-dark: #333333;
+            --panel-light: #5a5a5a;
+            --screen-color: #0a380a;
+            --button-red: #8b0000;
+            --button-green: #006400;
+            --button-yellow: #8b8b00;
+            --led-off: #3a3a3a;
+            --led-red: #ff0000;
+            --led-green: #00ff00;
+            --led-yellow: #ffff00;
+            --meter-color: #222;
+            --meter-dial: #ddd;
+            --font-display: 'Courier New', monospace;
+        }
+        
+        * {
+            box-sizing: border-box;
+            user-select: none;
+            -webkit-user-select: none;
+            -webkit-tap-highlight-color: transparent;
+        }
+        
+        body {
+            font-family: 'Courier New', monospace;
+            margin: 0;
+            padding: 0;
+            background-color: #1a1a1a;
+            color: #e0e0e0;
+            overflow-x: hidden;
+            touch-action: manipulation;
+        }
+        
+        .container {
+            max-width: 100%;
+            margin: 0 auto;
+            padding: 10px;
+        }
+        
+        .control-panel {
+            background-color: var(--panel-color);
+            border-radius: 8px;
+            border: 4px solid #333;
+            box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.7), 0 5px 15px rgba(0, 0, 0, 0.8);
+            margin-bottom: 20px;
+            padding: 15px;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .panel-label {
+            background-color: #333;
+            color: #ddd;
+            font-size: 14px;
+            padding: 5px 10px;
+            border-radius: 3px;
+            margin-bottom: 10px;
+            text-align: center;
+            font-weight: bold;
+            box-shadow: inset 0 0 5px rgba(0, 0, 0, 0.5);
+            border: 1px solid #555;
+            letter-spacing: 1px;
+        }
+        
+        .control-section {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-bottom: 15px;
+            justify-content: center;
+        }
+        
+        /* Reactor Screen */
+        .reactor-screen {
+            background-color: var(--screen-color);
+            border-radius: 5px;
+            border: 6px solid #333;
+            box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.8), 0 0 5px rgba(0, 255, 0, 0.2);
+            height: 200px;
+            position: relative;
+            overflow: hidden;
+            margin-bottom: 20px;
+        }
+        
+        .screen-content {
+            height: 100%;
+            width: 100%;
+            position: relative;
+            z-index: 1;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            padding: 10px;
+            font-family: var(--font-display);
+            color: #00ff00;
+            text-shadow: 0 0 5px #00ff00;
+            overflow: hidden;
+        }
+        
+        .core-visualization {
+            flex: 1;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        
+        .core {
+            width: 120px;
+            height: 120px;
+            position: relative;
+            transform-style: preserve-3d;
+            animation: slow-fps 10s steps(10) infinite;
+        }
+        
+        .core-polyhedron {
+            position: absolute;
+            width: 80px;
+            height: 80px;
+            left: 20px;
+            top: 20px;
+            transform-style: preserve-3d;
+            animation: rotate-slow 8s steps(15) infinite;
+        }
+        
+        .core-face {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            background: rgba(255, 165, 0, 0.2);
+            border: 1px solid rgba(255, 165, 0, 0.7);
+            box-shadow: 0 0 10px rgba(255, 165, 0, 0.5);
+            backface-visibility: visible;
+            transform-origin: center;
+        }
+        
+        .core-inner {
+            position: absolute;
+            width: 50px;
+            height: 50px;
+            left: 35px;
+            top: 35px;
+            background-color: rgba(255, 165, 0, 0.4);
+            border-radius: 50%;
+            box-shadow: 0 0 30px rgba(255, 165, 0, 0.9);
+            z-index: 2;
+            transform: scale(1);
+            transition: all 0.5s step-end;
+            filter: blur(5px);
+        }
+        
+        .made-in-label {
+            position: absolute;
+            bottom: 5px;
+            right: 10px;
+            font-size: 8px;
+            color: #aaa;
+            text-transform: uppercase;
+            transform: rotate(-5deg);
+            background: rgba(0, 0, 0, 0.3);
+            padding: 2px 5px;
+            border: 1px solid #555;
+            border-radius: 3px;
+            box-shadow: inset 0 0 3px rgba(0, 0, 0, 0.5);
+            z-index: 10;
+        }
+        
+        .neutron {
+            position: absolute;
+            width: 4px;
+            height: 4px;
+            background-color: #00ff00;
+            border-radius: 50%;
+            box-shadow: 0 0 5px #00ff00;
+            animation: neutron-move 3s infinite;
+            opacity: 0.7;
+        }
+        
+        .screen-scanline {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(to bottom, transparent, rgba(0, 255, 0, 0.04), transparent);
+            background-size: 100% 3px;
+            z-index: 3;
+            pointer-events: none;
+        }
+        
+        .screen-flicker {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 255, 0, 0.05);
+            opacity: 0;
+            z-index: 4;
+            pointer-events: none;
+        }
+        
+        .screen-grain {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.15'/%3E%3C/svg%3E");
+            opacity: 0.15;
+            z-index: 2;
+            pointer-events: none;
+        }
+        
+        .status-bars {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            font-size: 12px;
+        }
+        
+        .status-bar {
+            background-color: rgba(0, 0, 0, 0.3);
+            border: 1px solid #00aa00;
+            border-radius: 3px;
+            height: 20px;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .status-bar-label {
+            position: absolute;
+            left: 5px;
+            top: 2px;
+            z-index: 1;
+            font-size: 10px;
+            text-shadow: 0 0 3px #000;
+        }
+        
+        .status-bar-fill {
+            height: 100%;
+            background-color: #00cc00;
+            width: 70%;
+            transition: width 0.5s;
+        }
+        
+        .status-bar-critical .status-bar-fill {
+            background-color: #cc0000;
+        }
+        
+        .status-bar-warning .status-bar-fill {
+            background-color: #cccc00;
+        }
+        
+        /* Controls */
+        .button-container, .switch-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin: 5px;
+        }
+        
+        .button-row {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+        
+        .power-control {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin: 5px;
+            width: 100px;
+        }
+        
+        .power-display {
+            background-color: var(--panel-dark);
+            border: 3px solid #222;
+            border-radius: 5px;
+            padding: 10px;
+            width: 100%;
+            text-align: center;
+            margin-bottom: 10px;
+            box-shadow: inset 0 0 8px rgba(0, 0, 0, 0.7);
+        }
+        
+        .power-value {
+            font-family: var(--font-display);
+            font-size: 18px;
+            color: #32cd32;
+            text-shadow: 0 0 5px #32cd32;
+            margin-bottom: 5px;
+        }
+        
+        .power-label {
+            font-size: 12px;
+            color: #ddd;
+            text-align: center;
+            height: 30px;
+        }
+        
+        .power-buttons {
+            display: flex;
+            gap: 5px;
+            width: 100%;
+        }
+        
+        .power-button {
+            flex: 1;
+            height: 40px;
+            background: linear-gradient(to bottom, #555, #333);
+            border: 2px solid #222;
+            border-radius: 5px;
+            color: #fff;
+            font-size: 16px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 3px 0 #111, 0 3px 5px rgba(0, 0, 0, 0.3);
+            transition: all 0.1s;
+        }
+        
+        .power-button:active {
+            transform: translateY(3px);
+            box-shadow: 0 0 0 #111, 0 0 2px rgba(0, 0, 0, 0.3);
+        }
+        
+        .water-control {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin: 5px;
+            width: 100px;
+        }
+        
+        .water-display {
+            background-color: #222;
+            border: 3px solid #333;
+            border-radius: 5px;
+            width: 40px;
+            height: 80px;
+            position: relative;
+            margin-bottom: 5px;
+            overflow: hidden;
+            box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.8);
+        }
+        
+        .water-level-container {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+        }
+        
+        .water-level {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            height: 0%;
+            background: linear-gradient(to bottom, #4a99ff, #0062c4);
+            transition: height 0.3s;
+        }
+        
+        .water-value {
+            position: absolute;
+            bottom: 5px;
+            left: 0;
+            width: 100%;
+            text-align: center;
+            font-size: 10px;
+            color: #fff;
+            text-shadow: 0 0 3px #000;
+            z-index: 2;
+        }
+        
+        .water-buttons {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+            margin-bottom: 5px;
+        }
+        
+        .water-button {
+            width: 30px;
+            height: 30px;
+            background: linear-gradient(to bottom, #555, #333);
+            border: 2px solid #222;
+            border-radius: 5px;
+            color: #fff;
+            font-size: 14px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 3px 0 #111, 0 3px 5px rgba(0, 0, 0, 0.3);
+            transition: all 0.1s;
+        }
+        
+        .water-button:active {
+            transform: translateY(3px);
+            box-shadow: 0 0 0 #111, 0 0 2px rgba(0, 0, 0, 0.3);
+        }
+        
+        .water-label {
+            font-size: 12px;
+            text-align: center;
+            margin-top: 5px;
+            color: #ddd;
+            max-width: 80px;
+            height: 30px;
+        }
+        
+        .button {
+            width: 60px;
+            height: 60px;
+            border-radius: 10px;
+            border: none;
+            font-family: 'Courier New', monospace;
+            font-weight: bold;
+            font-size: 11px;
+            cursor: pointer;
+            transition: all 0.1s;
+            position: relative;
+            overflow: hidden;
+            box-shadow: 0 5px 0 #333, 0 5px 10px rgba(0, 0, 0, 0.4);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+            color: white;
+            padding: 5px;
+        }
+        
+        .button.red {
+            background-color: var(--button-red);
+        }
+        
+        .button.green {
+            background-color: var(--button-green);
+        }
+        
+        .button.yellow {
+            background-color: var(--button-yellow);
+            color: #333;
+        }
+        
+        .button.blue {
+            background-color: #00008b;
+        }
+        
+        .button-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 10px;
+            width: 100%;
+        }
+        
+        .indicators-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 10px;
+            width: 100%;
+        }
+        
+        .meters-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 15px;
+            width: 100%;
+        }
+        
+        .led.blue-active {
+            background-color: #00f;
+            box-shadow: 0 0 8px #00f;
+        }
+        
+        .button:active, .button-glow {
+            transform: translateY(5px);
+            box-shadow: 0 0 0 #333, 0 0 25px rgba(255, 255, 255, 0.7);
+        }
+        
+        .button.red:active, .button.red.button-glow {
+            box-shadow: 0 0 0 #333, 0 0 20px rgba(255, 0, 0, 0.7);
+        }
+        
+        .button.green:active, .button.green.button-glow {
+            box-shadow: 0 0 0 #333, 0 0 20px rgba(0, 255, 0, 0.7);
+        }
+        
+        .button.yellow:active, .button.yellow.button-glow {
+            box-shadow: 0 0 0 #333, 0 0 20px rgba(255, 255, 0, 0.7);
+        }
+        
+        .button.blue:active, .button.blue.button-glow {
+            box-shadow: 0 0 0 #333, 0 0 20px rgba(0, 0, 255, 0.7);
+        }
+        
+        .power-button:active, .power-button.button-glow, 
+        .water-button:active, .water-button.button-glow {
+            transform: translateY(3px);
+            box-shadow: 0 0 0 #111, 0 0 15px rgba(255, 255, 255, 0.6);
+        }
+        
+        .button-label {
+            font-size: 12px;
+            text-align: center;
+            margin-top: 10px;
+            color: #ddd;
+            max-width: 80px;
+            height: 30px;
+        }
+        
+        .led {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            position: absolute;
+            bottom: -6px;
+            left: calc(50% - 6px);
+            background-color: var(--led-off);
+            border: 1px solid #222;
+            box-shadow: 0 0 3px rgba(0, 0, 0, 0.5);
+            transition: all 0.2s;
+        }
+        
+        .led.red-active {
+            background-color: var(--led-red);
+            box-shadow: 0 0 8px var(--led-red);
+        }
+        
+        .led.green-active {
+            background-color: var(--led-green);
+            box-shadow: 0 0 8px var(--led-green);
+        }
+        
+        .led.yellow-active {
+            background-color: var(--led-yellow);
+            box-shadow: 0 0 8px var(--led-yellow);
+        }
+        
+        .toggle-switch {
+            position: relative;
+            width: 60px;
+            height: 30px;
+            background-color: #333;
+            border-radius: 5px;
+            border: 2px solid #222;
+            box-shadow: inset 0 0 5px rgba(0, 0, 0, 0.5);
+            margin-bottom: 10px;
+        }
+        
+        .switch-handle {
+            position: absolute;
+            width: 20px;
+            height: 40px;
+            top: -8px;
+            left: 5px;
+            background: linear-gradient(to right, #888, #ccc, #888);
+            border-radius: 5px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+            transition: transform 0.2s;
+            transform-origin: center bottom;
+            z-index: 1;
+        }
+        
+        .toggle-switch.on .switch-handle {
+            transform: translateX(30px);
+        }
+        
+        .switch-label {
+            font-size: 12px;
+            text-align: center;
+            margin-top: 5px;
+            color: #ddd;
+        }
+        
+        .indicators {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px;
+            margin-top: 10px;
+            justify-content: center;
+        }
+        
+        .indicator {
+            width: 80px;
+            text-align: center;
+        }
+        
+        .indicator-light {
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            margin: 0 auto 8px;
+            border: 3px solid #333;
+            position: relative;
+            background-color: var(--led-off);
+            box-shadow: inset 0 0 8px rgba(0, 0, 0, 0.5);
+        }
+        
+        .indicator-light.red-light.active {
+            background-color: var(--led-red);
+            box-shadow: 0 0 15px var(--led-red);
+        }
+        
+        .indicator-light.green-light.active {
+            background-color: var(--led-green);
+            box-shadow: 0 0 15px var(--led-green);
+        }
+        
+        .indicator-light.yellow-light.active {
+            background-color: var(--led-yellow);
+            box-shadow: 0 0 15px var(--led-yellow);
+        }
+        
+        .indicator-label {
+            font-size: 11px;
+            color: #ddd;
+        }
+        
+        .data-readout {
+            background-color: rgba(0, 0, 0, 0.5);
+            border: 2px solid #444;
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 5px;
+            box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.8);
+        }
+        
+        .data-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 5px;
+        }
+        
+        .data-item {
+            display: flex;
+            justify-content: space-between;
+            margin: 5px 0;
+            font-size: 14px;
+            color: #32cd32;
+            text-shadow: 0 0 2px #32cd32;
+            font-family: var(--font-display);
+        }
+        
+        .notification-area {
+            background-color: rgba(0, 0, 0, 0.7);
+            border: 2px solid #555;
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 5px;
+            max-height: 100px;
+            overflow-y: auto;
+            font-family: var(--font-display);
+            color: #ddd;
+            font-size: 12px;
+        }
+        
+        .notification {
+            margin-bottom: 5px;
+            padding: 3px;
+            border-left: 3px solid #555;
+        }
+        
+        .notification.alert {
+            border-left-color: #cc0000;
+            background-color: rgba(204, 0, 0, 0.1);
+        }
+        
+        .notification.warning {
+            border-left-color: #cccc00;
+            background-color: rgba(204, 204, 0, 0.1);
+        }
+        
+        .notification.info {
+            border-left-color: #00cc00;
+            background-color: rgba(0, 204, 0, 0.1);
+        }
+        
+        /* Meter styles with improved value display */
+        .meter {
+            width: 120px;
+            height: 80px;
+            background-color: var(--meter-color);
+            border-radius: 8px 8px 0 0;
+            position: relative;
+            overflow: hidden;
+            border: 4px solid #333;
+            box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.8);
+            margin: 0 auto 5px;
+        }
+        
+        .meter-scale {
+            position: absolute;
+            width: 80%;
+            height: 80%;
+            top: 10%;
+            left: 10%;
+            border-radius: 50% 50% 0 0;
+            border-top: 2px solid var(--meter-dial);
+            border-left: 2px solid var(--meter-dial);
+            border-right: 2px solid var(--meter-dial);
+            clip-path: polygon(0 100%, 50% 0, 100% 100%);
+        }
+        
+        .meter-needle {
+            position: absolute;
+            width: 2px;
+            height: 45px;
+            background-color: #ff0000;
+            left: 50%;
+            bottom: 0;
+            transform-origin: bottom center;
+            transform: rotate(0deg);
+            z-index: 2;
+            transition: transform 0.5s steps(5);
+            box-shadow: 0 0 5px #ff0000;
+        }
+        
+        .meter-markings {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+        }
+        
+        .meter-mark {
+            position: absolute;
+            width: 5px;
+            height: 1px;
+            background-color: var(--meter-dial);
+            transform-origin: left center;
+        }
+        
+        .meter-value {
+            position: absolute;
+            top: -25px;
+            left: 0;
+            width: 100%;
+            padding: 2px;
+            text-align: center;
+            color: #32cd32;
+            font-size: 9px;
+            font-family: var(--font-display);
+            background-color: rgba(0, 0, 0, 0.7);
+            border-radius: 3px;
+            border: 1px solid #444;
+            z-index: 3;
+            text-shadow: 0 0 2px #32cd32;
+        }
+        
+        .meter-label {
+            font-size: 12px;
+            text-align: center;
+            margin-top: 5px;
+            margin-bottom: 10px;
+            color: #ddd;
+        }
+        
+        @keyframes rotate-slow {
+            from { transform: rotateX(0deg) rotateY(0deg) rotateZ(0deg); }
+            to { transform: rotateX(360deg) rotateY(360deg) rotateZ(360deg); }
+        }
+        
+        @keyframes slow-fps {
+            0% { opacity: 1; }
+            5% { opacity: 0.9; }
+            10% { opacity: 1; }
+            15% { opacity: 0.95; }
+            20% { opacity: 1; }
+            95% { opacity: 1; }
+            100% { opacity: 0.9; }
+        }
+        
+        @keyframes neutron-move {
+            0% { transform: translate(0, 0); opacity: 0; }
+            10% { opacity: 0.7; }
+            100% { transform: translate(var(--moveX), var(--moveY)); opacity: 0; }
+        }
+        
+        /* Responsive Styles */
+        @media (orientation: landscape) {
+            .control-panel {
+                display: grid;
+                grid-template-columns: 1fr 1fr;
+                gap: 15px;
+            }
+            
+            .reactor-section {
+                grid-column: 1 / 2;
+            }
+            
+            .controls-section {
+                grid-column: 2 / 3;
+            }
+        }
+        
+        @media (orientation: portrait) {
+            .control-panel {
+                display: flex;
+                flex-direction: column;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="control-panel">
+            <div class="panel-label">РБМК-1000 СИСТЕМА УПРАВЛЕНИЯ</div>
+            
+            <div class="reactor-section">
+                <div class="panel-label">МОНИТОР СОСТОЯНИЯ РЕАКТОРА</div>
+                <div class="reactor-screen">
+                    <div class="screen-content">
+                        <div class="core-visualization">
+                            <div class="core">
+                                <div class="core-polyhedron" id="core-polyhedron"></div>
+                                <div class="core-inner"></div>
+                                <div id="neutrons-container"></div>
+                            </div>
+                            <div class="made-in-label">Сделано в СССР 1967 г.</div>
+                        </div>
+                        <div class="status-bars">
+                            <div class="status-bar">
+                                <div class="status-bar-label">МОЩНОСТЬ</div>
+                                <div class="status-bar-fill" id="power-level-bar"></div>
+                            </div>
+                            <div class="status-bar">
+                                <div class="status-bar-label">ТЕМП.</div>
+                                <div class="status-bar-fill" id="temp-level-bar"></div>
+                            </div>
+                            <div class="status-bar">
+                                <div class="status-bar-label">ДАВЛЕНИЕ</div>
+                                <div class="status-bar-fill" id="pressure-level-bar"></div>
+                            </div>
+                            <div class="status-bar">
+                                <div class="status-bar-label">ОХЛАЖД.</div>
+                                <div class="status-bar-fill" id="cooling-level-bar"></div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="screen-scanline"></div>
+                    <div class="screen-flicker"></div>
+                    <div class="screen-grain"></div>
+                </div>
+                
+                <div class="data-readout">
+                    <div class="data-grid">
+                        <div class="data-item">
+                            <span>МОЩНОСТЬ:</span>
+                            <span id="power-output">0 МВт</span>
+                        </div>
+                        <div class="data-item">
+                            <span>ВЫРАБОТКА:</span>
+                            <span id="energy-generated">0 МВт·ч</span>
+                        </div>
+                        <div class="data-item">
+                            <span>ДОХОД:</span>
+                            <span id="rubles-earned">0 РУБ. СССР</span>
+                        </div>
+                        <div class="data-item">
+                            <span>СТАБИЛЬНОСТЬ:</span>
+                            <span id="stability-status">100%</span>
+                        </div>
+                        <div class="data-item">
+                            <span>ЗАПАС ТОПЛИВА:</span>
+                            <span id="fuel-status">100%</span>
+                        </div>
+                        <div class="data-item">
+                            <span>ОБ. ГИДРОАГР.:</span>
+                            <span id="turbine-status">0 об/мин</span>
+                        </div>
+                        <div class="data-item">
+                            <span>КОНТРОЛЬ:</span>
+                            <span id="rod-position">100%</span>
+                        </div>
+                        <div class="data-item">
+                            <span>РЕЖИМ:</span>
+                            <span id="operation-mode">ОЖИДАНИЕ</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="notification-area" id="notification-area">
+                    <div class="notification info">Система запущена. Режим ожидания.</div>
+                </div>
+            </div>
+            
+            <div class="controls-section">
+                <div class="panel-label">ПАНЕЛЬ УПРАВЛЕНИЯ</div>
+                
+                <div class="control-section button-grid">
+                    <div class="button-container">
+                        <button class="button red" id="scram-button">АЗ-5<br>АВАРИЙНАЯ<br>ЗАЩИТА</button>
+                        <div class="led" id="scram-led"></div>
+                        <div class="button-label">АВАРИЙНАЯ ОСТАНОВКА</div>
+                    </div>
+                    
+                    <div class="button-container">
+                        <button class="button green" id="start-button">ПУСК</button>
+                        <div class="led" id="start-led"></div>
+                        <div class="button-label">ЗАПУСК РЕАКТОРА</div>
+                    </div>
+                    
+                    <div class="button-container">
+                        <button class="button yellow" id="test-button">ПРОВЕРКА<br>СИСТЕМ</button>
+                        <div class="led" id="test-led"></div>
+                        <div class="button-label">ДИАГНОСТИКА</div>
+                    </div>
+                    
+                    <div class="button-container">
+                        <button class="button green" id="turbine-button">ТУРБИНА</button>
+                        <div class="led" id="turbine-led"></div>
+                        <div class="button-label">РЕЖИМ ТУРБИНЫ</div>
+                    </div>
+                    
+                    <div class="button-container">
+                        <button class="button yellow" id="rods-button">СТЕРЖНИ<br>СУЗ</button>
+                        <div class="led" id="rods-led"></div>
+                        <div class="button-label">УПРАВЛЕНИЕ СТЕРЖНЯМИ</div>
+                    </div>
+                    
+                    <div class="button-container">
+                        <button class="button blue" id="pressure-release-button">СБРОС<br>ДАВЛЕНИЯ</button>
+                        <div class="led" id="pressure-release-led"></div>
+                        <div class="button-label">СБРОС ДАВЛЕНИЯ</div>
+                    </div>
+                    
+                    <div class="button-container">
+                        <button class="button blue" id="coolant-reserve-button">РЕЗЕРВ<br>ОХЛАЖД.</button>
+                        <div class="led" id="coolant-reserve-led"></div>
+                        <div class="button-label">АВАРИЙНОЕ ОХЛАЖДЕНИЕ</div>
+                    </div>
+                    
+                    <div class="button-container">
+                        <button class="button yellow" id="neutron-button">БАЛАНС<br>НЕЙТР.</button>
+                        <div class="led" id="neutron-led"></div>
+                        <div class="button-label">НЕЙТРОННЫЙ БАЛАНС</div>
+                    </div>
+                </div>
+                
+                <div class="control-section">
+                    <div class="power-control">
+                        <div class="power-display">
+                            <div class="power-value" id="power-value">0%</div>
+                            <div class="power-label">МОЩНОСТЬ РЕАКТОРА</div>
+                        </div>
+                        <div class="power-buttons">
+                            <button class="power-button up" id="power-up">▲</button>
+                            <button class="power-button down" id="power-down">▼</button>
+                        </div>
+                    </div>
+                    
+                    <div class="water-control">
+                        <div class="water-display">
+                            <div class="water-level-container">
+                                <div class="water-level" id="water-level"></div>
+                            </div>
+                            <div class="water-value" id="coolant-value">0%</div>
+                        </div>
+                        <div class="water-buttons">
+                            <button class="water-button up" id="water-up">▲</button>
+                            <button class="water-button down" id="water-down">▼</button>
+                        </div>
+                        <div class="water-label">ПОДАЧА ВОДЫ</div>
+                    </div>
+                </div>
+                
+                <div class="control-section meters-grid">
+                    <div class="meter-container">
+                        <div class="meter">
+                            <div class="meter-scale"></div>
+                            <div class="meter-markings" id="pressure-meter-markings"></div>
+                            <div class="meter-needle" id="pressure-meter-needle"></div>
+                            <div class="meter-value" id="pressure-meter-value">0 кПа</div>
+                        </div>
+                        <div class="meter-label">ДАВЛЕНИЕ В КОНТУРЕ</div>
+                    </div>
+                    
+                    <div class="meter-container">
+                        <div class="meter">
+                            <div class="meter-scale"></div>
+                            <div class="meter-markings" id="temp-meter-markings"></div>
+                            <div class="meter-needle" id="temp-meter-needle"></div>
+                            <div class="meter-value" id="temp-meter-value">20°C</div>
+                        </div>
+                        <div class="meter-label">ТЕМПЕРАТУРА</div>
+                    </div>
+                    
+                    <div class="meter-container">
+                        <div class="meter">
+                            <div class="meter-scale"></div>
+                            <div class="meter-markings" id="radiation-meter-markings"></div>
+                            <div class="meter-needle" id="radiation-meter-needle"></div>
+                            <div class="meter-value" id="radiation-meter-value">0 мкЗв/ч</div>
+                        </div>
+                        <div class="meter-label">РАДИАЦИЯ</div>
+                    </div>
+                    
+                    <div class="meter-container">
+                        <div class="meter">
+                            <div class="meter-scale"></div>
+                            <div class="meter-markings" id="neutron-meter-markings"></div>
+                            <div class="meter-needle" id="neutron-meter-needle"></div>
+                            <div class="meter-value" id="neutron-meter-value">0 н/с</div>
+                        </div>
+                        <div class="meter-label">ПОТОК НЕЙТРОНОВ</div>
+                    </div>
+                </div>
+                
+                <div class="control-section">
+                    <div class="indicators-grid">
+                        <div class="indicator">
+                            <div class="indicator-light red-light" id="alarm-indicator"></div>
+                            <div class="indicator-label">АВАРИЯ</div>
+                        </div>
+                        <div class="indicator">
+                            <div class="indicator-light yellow-light" id="warning-indicator"></div>
+                            <div class="indicator-label">ВНИМАНИЕ</div>
+                        </div>
+                        <div class="indicator">
+                            <div class="indicator-light green-light active" id="normal-indicator"></div>
+                            <div class="indicator-label">НОРМА</div>
+                        </div>
+                        <div class="indicator">
+                            <div class="indicator-light red-light" id="radiation-indicator"></div>
+                            <div class="indicator-label">РАДИАЦИЯ</div>
+                        </div>
+                        <div class="indicator">
+                            <div class="indicator-light green-light active" id="turbine-indicator"></div>
+                            <div class="indicator-label">ТУРБИНА</div>
+                        </div>
+                        <div class="indicator">
+                            <div class="indicator-light green-light active" id="fuel-indicator"></div>
+                            <div class="indicator-label">ТОПЛИВО</div>
+                        </div>
+                        <div class="indicator">
+                            <div class="indicator-light green-light active" id="pump-indicator"></div>
+                            <div class="indicator-label">НАСОСЫ</div>
+                        </div>
+                        <div class="indicator">
+                            <div class="indicator-light green-light active" id="control-indicator"></div>
+                            <div class="indicator-label">КОНТРОЛЬ</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Reactor extended state
+        const reactor = {
+            running: false,
+            powerLevel: 0,
+            targetPower: 0,
+            temperature: 20,
+            pressure: 0,
+            coolantFlow: 0,
+            stability: 100,
+            energyGenerated: 0,
+            rublesEarned: 0,
+            safetySystemsActive: true,
+            neutronActivity: 0,
+            fuelIntegrity: 100,
+            controlRodsPosition: 100, // 100 = fully inserted, 0 = fully withdrawn
+            timeRunning: 0,
+            turbineActive: false,
+            turbineRPM: 0,
+            radiationLevel: 0,
+            fuelRemaining: 100,
+            emergencyCoolingActive: false,
+            neutronFlux: 0,
+            operationMode: "ОЖИДАНИЕ"
+        };
+        
+        // Constants
+        const MAX_POWER = 1000; // MW
+        const MAX_TEMP = 700; // Celsius
+        const MAX_PRESSURE = 7000; // kPa
+        const RUBLES_PER_MWH = 50; // Soviet rubles per MWh
+        const UPDATE_INTERVAL = 1000; // ms
+        const NEUTRON_COUNT = 20;
+        
+        // Random events
+        const randomEvents = [
+            {
+                name: "coolantLeak",
+                message: "ПРЕДУПРЕЖДЕНИЕ: Обнаружена утечка охлаждающей жидкости в контуре.",
+                probability: 0.05,
+                effect: () => {
+                    reactor.coolantFlow *= 0.8;
+                    addNotification("ПРЕДУПРЕЖДЕНИЕ: Обнаружена утечка охлаждающей жидкости в контуре.", "warning");
+                }
+            },
+            {
+                name: "powerSurge",
+                message: "ВНИМАНИЕ: Зафиксирован скачок мощности в энергосети.",
+                probability: 0.03,
+                effect: () => {
+                    reactor.targetPower *= 1.2;
+                    addNotification("ВНИМАНИЕ: Зафиксирован скачок мощности в энергосети.", "warning");
+                }
+            },
+            {
+                name: "controlRodIssue",
+                message: "ПРЕДУПРЕЖДЕНИЕ: Стержень СУЗ #14 заклинило.",
+                probability: 0.04,
+                effect: () => {
+                    reactor.stability -= 5;
+                    addNotification("ПРЕДУПРЕЖДЕНИЕ: Стержень СУЗ #14 заклинило.", "warning");
+                }
+            },
+            {
+                name: "sensorMalfunction",
+                message: "СБОЙ: Датчик температуры показывает неверные значения.",
+                probability: 0.06,
+                effect: () => {
+                    // No real effect, just a fake warning
+                    addNotification("СБОЙ: Датчик температуры показывает неверные значения.", "info");
+                }
+            },
+            {
+                name: "externalPowerLoss",
+                message: "АВАРИЯ: Потеря внешнего электроснабжения. Переход на аварийные генераторы.",
+                probability: 0.02,
+                effect: () => {
+                    reactor.stability -= 10;
+                    addNotification("АВАРИЯ: Потеря внешнего электроснабжения. Переход на аварийные генераторы.", "alert");
+                }
+            },
+            // Additional random events
+            {
+                name: "fuelDeformation",
+                message: "АВАРИЯ: Обнаружена деформация топливных элементов.",
+                probability: 0.025,
+                effect: () => {
+                    reactor.fuelIntegrity -= 15;
+                    reactor.radiationLevel += 50;
+                    addNotification("АВАРИЯ: Обнаружена деформация топливных элементов.", "alert");
+                }
+            },
+            {
+                name: "turbineVibration",
+                message: "ПРЕДУПРЕЖДЕНИЕ: Аномальная вибрация турбины.",
+                probability: 0.04,
+                effect: () => {
+                    if (reactor.turbineActive) {
+                        reactor.turbineRPM *= 0.7;
+                        addNotification("ПРЕДУПРЕЖДЕНИЕ: Аномальная вибрация турбины. Обороты снижены.", "warning");
+                    }
+                }
+            },
+            {
+                name: "pumpFailure",
+                message: "АВАРИЯ: Отказ главного циркуляционного насоса.",
+                probability: 0.03,
+                effect: () => {
+                    reactor.coolantFlow *= 0.5;
+                    document.getElementById('pump-indicator').classList.remove('active');
+                    addNotification("АВАРИЯ: Отказ главного циркуляционного насоса. Охлаждение снижено!", "alert");
+                }
+            },
+            {
+                name: "radiationLeak",
+                message: "КРИТИЧЕСКАЯ АВАРИЯ: Обнаружена утечка радиации!",
+                probability: 0.01,
+                effect: () => {
+                    reactor.radiationLevel += 200;
+                    reactor.stability -= 20;
+                    document.getElementById('radiation-indicator').classList.add('active');
+                    addNotification("КРИТИЧЕСКАЯ АВАРИЯ: Обнаружена утечка радиации!", "alert");
+                }
+            },
+            {
+                name: "powerGridOverload",
+                message: "ВНИМАНИЕ: Перегрузка энергосети.",
+                probability: 0.035,
+                effect: () => {
+                    addNotification("ВНИМАНИЕ: Перегрузка энергосети. Требуется сброс мощности.", "warning");
+                    if (reactor.powerLevel > MAX_POWER * 0.7) {
+                        setTimeout(() => {
+                            if (reactor.powerLevel > MAX_POWER * 0.7) {
+                                addNotification("АВАРИЯ: Принудительный сброс мощности из-за перегрузки сети.", "alert");
+                                reactor.targetPower = MAX_POWER * 0.5;
+                            }
+                        }, 5000);
+                    }
+                }
+            }
+        ];
+        
+        // Create polyhedron for the reactor core
+        function createPolyhedron() {
+            const polyhedron = document.getElementById('core-polyhedron');
+            if (!polyhedron) return; // Guard against missing element
+            
+            polyhedron.innerHTML = ''; // Clear any existing faces
+            const faces = 12; // Dodecahedron
+            
+            // Create faces
+            for (let i = 0; i < faces; i++) {
+                const face = document.createElement('div');
+                face.className = 'core-face';
+                
+                // Position faces to form a rough polyhedron
+                let rotateX = (i % 3) * 120;
+                let rotateY = Math.floor(i / 3) * 90;
+                let rotateZ = i * 30;
+                
+                face.style.transform = `rotateX(${rotateX}deg) rotateY(${rotateY}deg) rotateZ(${rotateZ}deg) translateZ(40px)`;
+                
+                polyhedron.appendChild(face);
+            }
+        }
+        
+        // Initialize interface elements
+        function initInterface() {
+            // Initialize meters
+            initMeter('pressure-meter-markings', 5);
+            initMeter('temp-meter-markings', 5);
+            
+            // Initialize meters for radiation and neutron flux
+            initMeter('radiation-meter-markings', 5);
+            initMeter('neutron-meter-markings', 5);
+            
+            // Generate neutrons
+            generateNeutrons();
+            
+            // Add event listeners
+            document.getElementById('start-button').addEventListener('click', toggleReactor);
+            document.getElementById('scram-button').addEventListener('click', scramReactor);
+            document.getElementById('test-button').addEventListener('click', testSystems);
+            
+            // Add power buttons event listeners
+            document.getElementById('power-up').addEventListener('click', increasePower);
+            document.getElementById('power-down').addEventListener('click', decreasePower);
+            
+            // Add water control buttons event listeners
+            document.getElementById('water-up').addEventListener('click', increaseWaterLevel);
+            document.getElementById('water-down').addEventListener('click', decreaseWaterLevel);
+            
+            // Add event listeners for new buttons
+            document.getElementById('turbine-button').addEventListener('click', toggleTurbine);
+            document.getElementById('rods-button').addEventListener('click', adjustControlRods);
+            document.getElementById('pressure-release-button').addEventListener('click', releasePressure);
+            document.getElementById('coolant-reserve-button').addEventListener('click', activateEmergencyCooling);
+            document.getElementById('neutron-button').addEventListener('click', balanceNeutrons);
+            
+            // Initial water level update
+            updateWaterLevel();
+            
+            // Start main game loop
+            setInterval(updateSimulation, UPDATE_INTERVAL);
+            
+            // Random events
+            setInterval(triggerRandomEvent, 30000);
+            
+            // Screen flicker effect
+            setInterval(() => {
+                const flicker = document.querySelector('.screen-flicker');
+                if (flicker) flicker.style.opacity = Math.random() > 0.95 ? 0.3 : 0;
+            }, 100);
+        }
+        
+        // Initialize functions - no longer needed for dials
+        function initDial(dialId, marksId, numMarks) {
+            // This function is kept for compatibility but no longer needed
+            return;
+        }
+        
+        // Initialize meter with marks
+        function initMeter(markingsId, numMarks) {
+            const markings = document.getElementById(markingsId);
+            if (!markings) return;
+            
+            for (let i = 0; i <= numMarks; i++) {
+                const mark = document.createElement('div');
+                mark.className = 'meter-mark';
+                const angle = (i / numMarks) * 180;
+                mark.style.width = '8px';
+                mark.style.left = '60px';
+                mark.style.top = '55px';
+                mark.style.transform = `rotate(${angle}deg)`;
+                markings.appendChild(mark);
+            }
+        }
+        
+        // Generate neutrons for core visualization
+        function generateNeutrons() {
+            const container = document.getElementById('neutrons-container');
+            if (!container) return;
+            
+            // Clear existing neutrons
+            container.innerHTML = '';
+            
+            for (let i = 0; i < NEUTRON_COUNT; i++) {
+                const neutron = document.createElement('div');
+                neutron.className = 'neutron';
+                neutron.style.setProperty('--moveX', `${getRandomInt(-40, 40)}px`);
+                neutron.style.setProperty('--moveY', `${getRandomInt(-40, 40)}px`);
+                neutron.style.animationDelay = `${Math.random() * 3}s`;
+                neutron.style.left = `${50 + getRandomInt(-10, 10)}px`;
+                neutron.style.top = `${50 + getRandomInt(-10, 10)}px`;
+                container.appendChild(neutron);
+            }
+        }
+        
+        // Update neutron animation speed based on reactor stability
+        function updateNeutronActivity() {
+            const neutrons = document.querySelectorAll('.neutron');
+            const activityFactor = Math.max(1, (100 - reactor.stability) / 20);
+            
+            neutrons.forEach(neutron => {
+                neutron.style.animationDuration = `${3 / activityFactor}s`;
+                
+                // Regenerate position if animation completes
+                if (Math.random() > 0.9) {
+                    neutron.style.setProperty('--moveX', `${getRandomInt(-40, 40)}px`);
+                    neutron.style.setProperty('--moveY', `${getRandomInt(-40, 40)}px`);
+                }
+            });
+            
+            // Update core appearance
+            const core = document.querySelector('.core-inner');
+            if (core) {
+                core.style.transform = `scale(${1 + (reactor.powerLevel / MAX_POWER) * 0.5})`;
+                
+                if (reactor.stability < 50) {
+                    core.style.backgroundColor = 'rgba(255, 50, 0, 0.7)';
+                    core.style.boxShadow = '0 0 30px rgba(255, 50, 0, 0.9)';
+                    // Update core faces color
+                    const faces = document.querySelectorAll('.core-face');
+                    faces.forEach(face => {
+                        face.style.borderColor = 'rgba(255, 50, 0, 0.8)';
+                        face.style.boxShadow = '0 0 15px rgba(255, 50, 0, 0.8)';
+                    });
+                } else if (reactor.stability < 80) {
+                    core.style.backgroundColor = 'rgba(255, 165, 0, 0.7)';
+                    core.style.boxShadow = '0 0 20px rgba(255, 165, 0, 0.8)';
+                    // Update core faces color
+                    const faces = document.querySelectorAll('.core-face');
+                    faces.forEach(face => {
+                        face.style.borderColor = 'rgba(255, 165, 0, 0.8)';
+                        face.style.boxShadow = '0 0 10px rgba(255, 165, 0, 0.7)';
+                    });
+                } else {
+                    core.style.backgroundColor = 'rgba(255, 165, 0, 0.5)';
+                    core.style.boxShadow = '0 0 20px rgba(255, 165, 0, 0.6)';
+                    // Update core faces color
+                    const faces = document.querySelectorAll('.core-face');
+                    faces.forEach(face => {
+                        face.style.borderColor = 'rgba(255, 165, 0, 0.7)';
+                        face.style.boxShadow = '0 0 10px rgba(255, 165, 0, 0.5)';
+                    });
+                }
+                
+                // Update core rotation speed - make it jerky with animation steps
+                const polyhedron = document.getElementById('core-polyhedron');
+                if (polyhedron) {
+                    const newDuration = Math.max(2, 8 / activityFactor);
+                    polyhedron.style.animationDuration = `${newDuration}s`;
+                }
+            }
+        }
+        
+        // Power control functions
+        function increasePower() {
+            // Increase power by 5%
+            let currentPowerPercent = Math.round((reactor.targetPower / MAX_POWER) * 100);
+            currentPowerPercent = Math.min(100, currentPowerPercent + 5);
+            reactor.targetPower = (currentPowerPercent / 100) * MAX_POWER;
+            document.getElementById('power-value').textContent = `${currentPowerPercent}%`;
+            
+            // Add glow effect to button
+            const button = document.getElementById('power-up');
+            button.classList.add('button-glow');
+            setTimeout(() => button.classList.remove('button-glow'), 300);
+        }
+        
+        function decreasePower() {
+            // Decrease power by 5%
+            let currentPowerPercent = Math.round((reactor.targetPower / MAX_POWER) * 100);
+            currentPowerPercent = Math.max(0, currentPowerPercent - 5);
+            reactor.targetPower = (currentPowerPercent / 100) * MAX_POWER;
+            document.getElementById('power-value').textContent = `${currentPowerPercent}%`;
+            
+            // Add glow effect to button
+            const button = document.getElementById('power-down');
+            button.classList.add('button-glow');
+            setTimeout(() => button.classList.remove('button-glow'), 300);
+        }
+        
+        // Water level control functions
+        function increaseWaterLevel() {
+            // Increase water by 5%
+            let currentLevel = reactor.coolantFlow * 100;
+            currentLevel = Math.min(100, currentLevel + 5);
+            reactor.coolantFlow = currentLevel / 100;
+            updateWaterLevel();
+            
+            // Add glow effect to button
+            const button = document.getElementById('water-up');
+            button.classList.add('button-glow');
+            setTimeout(() => button.classList.remove('button-glow'), 300);
+        }
+        
+        function decreaseWaterLevel() {
+            // Decrease water by 5%
+            let currentLevel = reactor.coolantFlow * 100;
+            currentLevel = Math.max(0, currentLevel - 5);
+            reactor.coolantFlow = currentLevel / 100;
+            updateWaterLevel();
+            
+            // Add glow effect to button
+            const button = document.getElementById('water-down');
+            button.classList.add('button-glow');
+            setTimeout(() => button.classList.remove('button-glow'), 300);
+        }
+        
+        function updateWaterLevel() {
+            const level = reactor.coolantFlow * 100;
+            const waterLevelElement = document.getElementById('water-level');
+            const coolantValueElement = document.getElementById('coolant-value');
+            
+            if (waterLevelElement) waterLevelElement.style.height = `${level}%`;
+            if (coolantValueElement) coolantValueElement.textContent = `${Math.round(level)}%`;
+        }
+        
+        // Toggle reactor on/off
+        function toggleReactor() {
+            if (reactor.running) {
+                shutdownReactor();
+            } else {
+                startReactor();
+            }
+        }
+        
+        // Start the reactor
+        function startReactor() {
+            if (!reactor.running) {
+                // Start reactor
+                reactor.running = true;
+                document.getElementById('start-led').classList.add('green-active');
+                document.getElementById('normal-indicator').classList.add('active');
+                document.getElementById('alarm-indicator').classList.remove('active');
+                document.getElementById('warning-indicator').classList.remove('active');
+                document.getElementById('control-indicator').classList.add('active');
+                document.getElementById('pump-indicator').classList.add('active');
+                
+                // Add button glow effect
+                document.getElementById('start-button').classList.add('button-glow');
+                setTimeout(() => document.getElementById('start-button').classList.remove('button-glow'), 500);
+                
+                addNotification("РЕАКТОР ЗАПУЩЕН. Начало набора мощности.", "info");
+            }
+        }
+        
+        // Normal shutdown
+        function shutdownReactor() {
+            reactor.running = false;
+            reactor.targetPower = 0;
+            document.getElementById('start-led').classList.remove('green-active');
+            addNotification("РЕАКТОР ОСТАНОВЛЕН штатно.", "info");
+        }
+        
+        // Emergency SCRAM
+        function scramReactor() {
+            document.getElementById('scram-led').classList.add('red-active');
+            document.getElementById('scram-button').classList.add('button-glow');
+            setTimeout(() => {
+                document.getElementById('scram-led').classList.remove('red-active');
+                document.getElementById('scram-button').classList.remove('button-glow');
+            }, 2000);
+            
+            reactor.running = false;
+            reactor.targetPower = 0;
+            reactor.controlRodsPosition = 100; // Fully inserted
+            document.getElementById('start-led').classList.remove('green-active');
+            
+            addNotification("АВАРИЙНАЯ ЗАЩИТА АКТИВИРОВАНА! Реактор заглушен.", "alert");
+            
+            // Check for false SCRAM
+            if (reactor.stability > 90) {
+                addNotification("ДИАГНОСТИКА: Ложное срабатывание защиты. Все параметры в норме.", "info");
+            }
+        }
+        
+        // Test systems
+        function testSystems() {
+            // Test systems
+            document.getElementById('test-led').classList.add('yellow-active');
+            document.getElementById('test-button').classList.add('button-glow');
+            
+            // Flash all indicator lights
+            const indicators = document.querySelectorAll('.indicator-light');
+            
+            indicators.forEach((indicator, index) => {
+                setTimeout(() => {
+                    indicator.classList.add('active');
+                    setTimeout(() => {
+                        if (!indicator.id.includes('normal') && 
+                            !indicator.id.includes('turbine') && 
+                            !indicator.id.includes('fuel') &&
+                            !indicator.id.includes('pump') &&
+                            !indicator.id.includes('control')) {
+                            indicator.classList.remove('active');
+                        }
+                    }, 500);
+                }, index * 300);
+            });
+            
+            addNotification("ДИАГНОСТИКА: Проверка систем инициирована...", "info");
+            
+            setTimeout(() => {
+                document.getElementById('test-led').classList.remove('yellow-active');
+                document.getElementById('test-button').classList.remove('button-glow');
+                document.getElementById('normal-indicator').classList.add('active');
+                addNotification("ДИАГНОСТИКА: Проверка завершена. Все системы в норме.", "info");
+            }, 2500);
+            
+            // Set random meter values during test
+            const testInterval = setInterval(() => {
+                const pressureMeterNeedle = document.getElementById('pressure-meter-needle');
+                const tempMeterNeedle = document.getElementById('temp-meter-needle');
+                
+                if (pressureMeterNeedle) pressureMeterNeedle.style.transform = `rotate(${Math.random() * 180}deg)`;
+                if (tempMeterNeedle) tempMeterNeedle.style.transform = `rotate(${Math.random() * 180}deg)`;
+            }, 200);
+            
+            setTimeout(() => clearInterval(testInterval), 2000);
+        }
+        
+        // New control button functions
+        function toggleTurbine() {
+            const turbineLed = document.getElementById('turbine-led');
+            const turbineIndicator = document.getElementById('turbine-indicator');
+            const turbineButton = document.getElementById('turbine-button');
+            
+            turbineButton.classList.add('button-glow');
+            setTimeout(() => turbineButton.classList.remove('button-glow'), 500);
+            
+            if (reactor.turbineActive) {
+                reactor.turbineActive = false;
+                if (turbineLed) turbineLed.classList.remove('green-active');
+                if (turbineIndicator) turbineIndicator.classList.remove('active');
+                addNotification("ТУРБИНА ОСТАНОВЛЕНА", "info");
+            } else {
+                if (reactor.running && reactor.powerLevel > MAX_POWER * 0.1) {
+                    reactor.turbineActive = true;
+                    if (turbineLed) turbineLed.classList.add('green-active');
+                    if (turbineIndicator) turbineIndicator.classList.add('active');
+                    addNotification("ТУРБИНА ЗАПУЩЕНА", "info");
+                } else {
+                    addNotification("НЕВОЗМОЖНО ЗАПУСТИТЬ ТУРБИНУ: Недостаточная мощность реактора", "warning");
+                }
+            }
+        }
+        
+        function adjustControlRods() {
+            const rodsLed = document.getElementById('rods-led');
+            const rodsButton = document.getElementById('rods-button');
+            
+            if (rodsLed) rodsLed.classList.add('yellow-active');
+            if (rodsButton) rodsButton.classList.add('button-glow');
+            
+            if (reactor.controlRodsPosition === 100) {
+                reactor.controlRodsPosition = 50;
+                addNotification("СТЕРЖНИ СУЗ: Установлены в среднее положение", "info");
+            } else if (reactor.controlRodsPosition === 50) {
+                reactor.controlRodsPosition = 25;
+                addNotification("СТЕРЖНИ СУЗ: Подняты на 75%", "info");
+            } else if (reactor.controlRodsPosition === 25) {
+                reactor.controlRodsPosition = 0;
+                addNotification("СТЕРЖНИ СУЗ: Полностью подняты", "warning");
+            } else {
+                reactor.controlRodsPosition = 100;
+                addNotification("СТЕРЖНИ СУЗ: Полностью опущены", "info");
+            }
+            
+            const rodPosition = document.getElementById('rod-position');
+            if (rodPosition) rodPosition.textContent = `${100 - reactor.controlRodsPosition}%`;
+            
+            setTimeout(() => {
+                if (rodsLed) rodsLed.classList.remove('yellow-active');
+                if (rodsButton) rodsButton.classList.remove('button-glow');
+            }, 1000);
+        }
+        
+        function releasePressure() {
+            const releaseLed = document.getElementById('pressure-release-led');
+            const releaseButton = document.getElementById('pressure-release-button');
+            
+            if (releaseLed) releaseLed.classList.add('blue-active');
+            if (releaseButton) releaseButton.classList.add('button-glow');
+            
+            if (reactor.pressure > 500) {
+                const releaseAmount = reactor.pressure * 0.3;
+                reactor.pressure -= releaseAmount;
+                
+                addNotification(`СБРОС ДАВЛЕНИЯ: ${Math.round(releaseAmount)} кПа сброшено`, "info");
+            } else {
+                addNotification("СБРОС ДАВЛЕНИЯ: Давление в норме, сброс не требуется", "info");
+            }
+            
+            setTimeout(() => {
+                if (releaseLed) releaseLed.classList.remove('blue-active');
+                if (releaseButton) releaseButton.classList.remove('button-glow');
+            }, 1000);
+        }
+        
+        function activateEmergencyCooling() {
+            const coolingLed = document.getElementById('coolant-reserve-led');
+            const coolingButton = document.getElementById('coolant-reserve-button');
+            
+            if (coolingButton) coolingButton.classList.add('button-glow');
+            setTimeout(() => {
+                if (coolingButton) coolingButton.classList.remove('button-glow');
+            }, 500);
+            
+            if (reactor.emergencyCoolingActive) {
+                reactor.emergencyCoolingActive = false;
+                if (coolingLed) coolingLed.classList.remove('blue-active');
+                addNotification("АВАРИЙНОЕ ОХЛАЖДЕНИЕ: Отключено", "info");
+            } else {
+                reactor.emergencyCoolingActive = true;
+                if (coolingLed) coolingLed.classList.add('blue-active');
+                addNotification("АВАРИЙНОЕ ОХЛАЖДЕНИЕ: Активировано", "info");
+                
+                // Immediate cooling effect
+                if (reactor.temperature > 100) {
+                    reactor.temperature -= 50;
+                    addNotification("АВАРИЙНОЕ ОХЛАЖДЕНИЕ: Экстренное снижение температуры", "info");
+                }
+            }
+        }
+        
+        function balanceNeutrons() {
+            const neutronLed = document.getElementById('neutron-led');
+            const neutronButton = document.getElementById('neutron-button');
+            
+            if (neutronLed) neutronLed.classList.add('yellow-active');
+            if (neutronButton) neutronButton.classList.add('button-glow');
+            
+            if (reactor.running) {
+                reactor.stability += 10;
+                reactor.stability = Math.min(100, reactor.stability);
+                
+                addNotification("НЕЙТРОННЫЙ БАЛАНС: Оптимизация потока нейтронов", "info");
+            } else {
+                addNotification("НЕЙТРОННЫЙ БАЛАНС: Реактор должен быть запущен", "warning");
+            }
+            
+            setTimeout(() => {
+                if (neutronLed) neutronLed.classList.remove('yellow-active');
+                if (neutronButton) neutronButton.classList.remove('button-glow');
+            }, 1000);
+        }
+        
+        // Add notification to the log
+        function addNotification(message, type = "info") {
+            const notificationArea = document.getElementById('notification-area');
+            if (!notificationArea) return;
+            
+            const notification = document.createElement('div');
+            notification.className = `notification ${type}`;
+            notification.textContent = message;
+            
+            notificationArea.insertBefore(notification, notificationArea.firstChild);
+            
+            // Limit to 10 notifications
+            if (notificationArea.children.length > 10) {
+                notificationArea.removeChild(notificationArea.lastChild);
+            }
+        }
+        
+        // Update all simulation values
+        function updateSimulation() {
+            if (reactor.running) {
+                // Update power level gradually towards target
+                if (Math.abs(reactor.powerLevel - reactor.targetPower) > 10) {
+                    reactor.powerLevel += (reactor.targetPower - reactor.powerLevel) * 0.1;
+                } else {
+                    reactor.powerLevel = reactor.targetPower;
+                }
+                
+                // Temperature affected by power and cooling
+                const coolingEfficiency = Math.min(reactor.coolantFlow * 1.2, 1);
+                reactor.temperature += (reactor.powerLevel / MAX_POWER) * 5;
+                reactor.temperature -= coolingEfficiency * 4;
+                
+                // Clamp temperature
+                reactor.temperature = Math.max(20, Math.min(MAX_TEMP, reactor.temperature));
+                
+                // Pressure affected by temperature and power
+                reactor.pressure = (reactor.temperature / MAX_TEMP) * MAX_PRESSURE * 0.7 + (reactor.powerLevel / MAX_POWER) * MAX_PRESSURE * 0.3;
+                
+                // Stability calculation
+                const tempFactor = Math.max(0, 1 - (reactor.temperature / MAX_TEMP) * 0.7);
+                const pressureFactor = Math.max(0, 1 - (reactor.pressure / MAX_PRESSURE) * 0.5);
+                const coolingFactor = Math.min(1, (reactor.coolantFlow / (reactor.powerLevel / MAX_POWER)) * 1.2);
+                
+                reactor.stability = 100 * tempFactor * pressureFactor * coolingFactor;
+                reactor.stability = Math.max(0, Math.min(100, reactor.stability));
+                
+                // Energy generation
+                reactor.timeRunning += UPDATE_INTERVAL / 1000; // in seconds
+                const hourFraction = UPDATE_INTERVAL / (1000 * 3600); // fraction of an hour
+                const energyThisUpdate = reactor.powerLevel * hourFraction;
+                reactor.energyGenerated += energyThisUpdate;
+                reactor.rublesEarned += energyThisUpdate * RUBLES_PER_MWH;
+                
+                // Additional calculated values
+                if (reactor.running) {
+                    // Radiation level based on power, temperature and integrity
+                    reactor.radiationLevel = (reactor.powerLevel / MAX_POWER) * 10 + 
+                                           (reactor.temperature / MAX_TEMP) * 30 * (1 - reactor.fuelIntegrity / 100);
+                    reactor.radiationLevel = Math.max(0.1, Math.min(1000, reactor.radiationLevel));
+                    
+                    // Neutron flux calculation
+                    reactor.neutronFlux = (reactor.powerLevel / MAX_POWER) * 1000 * (1 - reactor.controlRodsPosition / 100);
+                    
+                    // Turbine RPM calculation
+                    if (reactor.turbineActive) {
+                        const targetRPM = 3000 * (reactor.powerLevel / MAX_POWER);
+                        reactor.turbineRPM += (targetRPM - reactor.turbineRPM) * 0.1;
+                    } else {
+                        reactor.turbineRPM *= 0.95; // Slow spindown
+                    }
+                    
+                    // Fuel consumption
+                    reactor.fuelRemaining -= (reactor.powerLevel / MAX_POWER) * 0.002;
+                    reactor.fuelRemaining = Math.max(0, reactor.fuelRemaining);
+                    
+                    // Emergency cooling effect
+                    if (reactor.emergencyCoolingActive) {
+                        reactor.temperature -= 1.5;
+                    }
+                    
+                    // Set operation mode
+                    if (reactor.powerLevel < MAX_POWER * 0.1) {
+                        reactor.operationMode = "МИНИМАЛЬНЫЙ";
+                    } else if (reactor.powerLevel < MAX_POWER * 0.5) {
+                        reactor.operationMode = "СРЕДНИЙ";
+                    } else if (reactor.powerLevel < MAX_POWER * 0.9) {
+                        reactor.operationMode = "ВЫСОКИЙ";
+                    } else {
+                        reactor.operationMode = "МАКСИМАЛЬНЫЙ";
+                    }
+                } else {
+                    reactor.operationMode = "ОЖИДАНИЕ";
+                    reactor.radiationLevel = 0.1;
+                    reactor.neutronFlux = 0;
+                    
+                    if (reactor.turbineRPM > 0) {
+                        reactor.turbineRPM *= 0.98; // Continue spindown
+                    }
+                }
+                
+                // Check for critical conditions
+                checkReactorSafety();
+                
+                // Update UI
+                updateUI();
+                
+                // Update neutron visualization
+                updateNeutronActivity();
+            } else {
+                // Reactor cooling down when off
+                if (reactor.temperature > 20) {
+                    reactor.temperature -= 1;
+                }
+                if (reactor.powerLevel > 0) {
+                    reactor.powerLevel = Math.max(0, reactor.powerLevel - (MAX_POWER * 0.02));
+                }
+                if (reactor.pressure > 0) {
+                    reactor.pressure = Math.max(0, reactor.pressure - (MAX_PRESSURE * 0.02));
+                }
+                
+                updateUI();
+            }
+        }
+        
+        // Check for safety issues
+        function checkReactorSafety() {
+            // Check temperature warning
+            const warningIndicator = document.getElementById('warning-indicator');
+            const normalIndicator = document.getElementById('normal-indicator');
+            const alarmIndicator = document.getElementById('alarm-indicator');
+            
+            // Check temperature warning
+            if (reactor.temperature > MAX_TEMP * 0.8) {
+                if (warningIndicator) warningIndicator.classList.add('active');
+                if (normalIndicator) normalIndicator.classList.remove('active');
+                
+                const notificationElement = document.querySelector('.notification:first-child');
+                if (notificationElement && !notificationElement.textContent.includes('ТЕМПЕРАТУРА ВЫСОКАЯ')) {
+                    addNotification("ПРЕДУПРЕЖДЕНИЕ: ТЕМПЕРАТУРА ВЫСОКАЯ!", "warning");
+                }
+            } else {
+                if (warningIndicator) warningIndicator.classList.remove('active');
+                if (reactor.stability > 80 && normalIndicator) {
+                    normalIndicator.classList.add('active');
+                }
+            }
+            
+            // Check pressure warning
+            if (reactor.pressure > MAX_PRESSURE * 0.85) {
+                if (warningIndicator) warningIndicator.classList.add('active');
+                if (normalIndicator) normalIndicator.classList.remove('active');
+                
+                const notificationElement = document.querySelector('.notification:first-child');
+                if (notificationElement && !notificationElement.textContent.includes('ДАВЛЕНИЕ КРИТИЧЕСКОЕ')) {
+                    addNotification("ПРЕДУПРЕЖДЕНИЕ: ДАВЛЕНИЕ КРИТИЧЕСКОЕ!", "warning");
+                }
+            }
+            
+            // Check cooling inadequate
+            if (reactor.powerLevel > 0 && reactor.coolantFlow < (reactor.powerLevel / MAX_POWER) * 0.5) {
+                if (warningIndicator) warningIndicator.classList.add('active');
+                if (normalIndicator) normalIndicator.classList.remove('active');
+                
+                const notificationElement = document.querySelector('.notification:first-child');
+                if (notificationElement && !notificationElement.textContent.includes('ОХЛАЖДЕНИЕ НЕДОСТАТОЧНОЕ')) {
+                    addNotification("ПРЕДУПРЕЖДЕНИЕ: ОХЛАЖДЕНИЕ НЕДОСТАТОЧНОЕ!", "warning");
+                }
+            }
+            
+            // Critical failure conditions
+            if (reactor.temperature > MAX_TEMP * 0.95 || reactor.pressure > MAX_PRESSURE * 0.95 || reactor.stability < 30) {
+                if (alarmIndicator) alarmIndicator.classList.add('active');
+                if (warningIndicator) warningIndicator.classList.remove('active');
+                if (normalIndicator) normalIndicator.classList.remove('active');
+                
+                if (reactor.stability < 10) {
+                    meltdown();
+                } else {
+                    const notificationElement = document.querySelector('.notification:first-child');
+                    if (notificationElement && !notificationElement.textContent.includes('КРИТИЧЕСКОЕ СОСТОЯНИЕ')) {
+                        addNotification("АВАРИЯ: КРИТИЧЕСКОЕ СОСТОЯНИЕ РЕАКТОРА!", "alert");
+                    }
+                }
+            } else {
+                if (alarmIndicator) alarmIndicator.classList.remove('active');
+            }
+        }
+        
+        // Meltdown scenario
+        function meltdown() {
+            reactor.running = false;
+            reactor.stability = 0;
+            
+            addNotification("АВАРИЯ: РАСПЛАВЛЕНИЕ АКТИВНОЙ ЗОНЫ РЕАКТОРА! ЭВАКУАЦИЯ!", "alert");
+            
+            // Visual effects for meltdown
+            const coreInner = document.querySelector('.core-inner');
+            const screenContent = document.querySelector('.screen-content');
+            
+            if (coreInner) {
+                coreInner.style.backgroundColor = 'rgba(255, 0, 0, 0.9)';
+                coreInner.style.boxShadow = '0 0 50px rgba(255, 0, 0, 1)';
+            }
+            
+            if (screenContent) {
+                screenContent.style.color = '#ff3300';
+            }
+            
+            // Shake effect
+            const controlPanel = document.querySelector('.control-panel');
+            if (controlPanel) {
+                controlPanel.style.animation = 'shake 0.5s infinite';
+            }
+            
+            // Flicker display
+            const flickerEffect = setInterval(() => {
+                const flicker = document.querySelector('.screen-flicker');
+                if (flicker) flicker.style.opacity = Math.random() > 0.5 ? 0.7 : 0;
+            }, 50);
+            
+            // Flash alarm
+            const alarmIndicator = document.getElementById('alarm-indicator');
+            const alarmEffect = setInterval(() => {
+                if (alarmIndicator) alarmIndicator.classList.toggle('active');
+            }, 500);
+            
+            // Lock controls
+            const buttons = document.querySelectorAll('.button:not(#scram-button)');
+            buttons.forEach(button => {
+                button.disabled = true;
+                button.style.opacity = 0.5;
+            });
+            
+            setTimeout(() => {
+                clearInterval(flickerEffect);
+                clearInterval(alarmEffect);
+                if (alarmIndicator) alarmIndicator.classList.add('active');
+                
+                // Game over screen
+                const screenContentElement = document.querySelector('.screen-content');
+                if (screenContentElement) {
+                    screenContentElement.innerHTML = `
+                        <div style="height: 100%; display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center;">
+                            <div style="font-size: 18px; color: #ff3300; margin-bottom: 10px;">КАТАСТРОФА!</div>
+                            <div style="font-size: 12px; margin-bottom: 5px;">Выработано: ${Math.round(reactor.energyGenerated)} МВт·ч</div>
+                            <div style="font-size: 12px; margin-bottom: 5px;">Доход: ${Math.round(reactor.rublesEarned)} руб.</div>
+                            <div style="font-size: 12px; margin-bottom: 20px;">Время работы: ${formatTime(reactor.timeRunning)}</div>
+                            <div style="font-size: 10px;">Обновите страницу для перезапуска</div>
+                        </div>
+                    `;
+                }
+            }, 3000);
+        }
+        
+        // Format time in seconds to HH:MM:SS
+        function formatTime(seconds) {
+            const hrs = Math.floor(seconds / 3600);
+            const mins = Math.floor((seconds % 3600) / 60);
+            const secs = Math.floor(seconds % 60);
+            
+            return `${hrs.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+        }
+        
+        // Update all UI elements
+        function updateUI() {
+            try {
+                // Update status bars
+                const powerLevelBar = document.getElementById('power-level-bar');
+                const tempLevelBar = document.getElementById('temp-level-bar');
+                const pressureLevelBar = document.getElementById('pressure-level-bar');
+                const coolingLevelBar = document.getElementById('cooling-level-bar');
+                
+                if (powerLevelBar) powerLevelBar.style.width = `${(reactor.powerLevel / MAX_POWER) * 100}%`;
+                if (tempLevelBar) tempLevelBar.style.width = `${(reactor.temperature / MAX_TEMP) * 100}%`;
+                if (pressureLevelBar) pressureLevelBar.style.width = `${(reactor.pressure / MAX_PRESSURE) * 100}%`;
+                if (coolingLevelBar) coolingLevelBar.style.width = `${reactor.coolantFlow * 100}%`;
+                
+                // Set status bar warning states
+                const tempBar = document.getElementById('temp-level-bar')?.parentNode;
+                const pressureBar = document.getElementById('pressure-level-bar')?.parentNode;
+                
+                if (tempBar) {
+                    tempBar.className = 'status-bar' + ((reactor.temperature / MAX_TEMP) > 0.8 ? ' status-bar-critical' : 
+                                                    (reactor.temperature / MAX_TEMP) > 0.6 ? ' status-bar-warning' : '');
+                }
+                
+                if (pressureBar) {
+                    pressureBar.className = 'status-bar' + ((reactor.pressure / MAX_PRESSURE) > 0.8 ? ' status-bar-critical' : 
+                                                        (reactor.pressure / MAX_PRESSURE) > 0.6 ? ' status-bar-warning' : '');
+                }
+                
+                // Update meters
+                const pressureMeterNeedle = document.getElementById('pressure-meter-needle');
+                const tempMeterNeedle = document.getElementById('temp-meter-needle');
+                const pressureMeterValue = document.getElementById('pressure-meter-value');
+                const tempMeterValue = document.getElementById('temp-meter-value');
+                
+                if (pressureMeterNeedle) pressureMeterNeedle.style.transform = `rotate(${(reactor.pressure / MAX_PRESSURE) * 180}deg)`;
+                if (tempMeterNeedle) tempMeterNeedle.style.transform = `rotate(${(reactor.temperature / MAX_TEMP) * 180}deg)`;
+                
+                if (pressureMeterValue) pressureMeterValue.textContent = `${Math.round(reactor.pressure)} кПа`;
+                if (tempMeterValue) tempMeterValue.textContent = `${Math.round(reactor.temperature)}°C`;
+                
+                // Update data readouts
+                const powerOutput = document.getElementById('power-output');
+                const energyGenerated = document.getElementById('energy-generated');
+                const rublesEarned = document.getElementById('rubles-earned');
+                const stabilityStatus = document.getElementById('stability-status');
+                
+                if (powerOutput) powerOutput.textContent = `${Math.round(reactor.powerLevel)} МВт`;
+                if (energyGenerated) energyGenerated.textContent = `${Math.round(reactor.energyGenerated)} МВт·ч`;
+                if (rublesEarned) rublesEarned.textContent = `${Math.round(reactor.rublesEarned)} РУБ. СССР`;
+                if (stabilityStatus) {
+                    stabilityStatus.textContent = `${Math.round(reactor.stability)}%`;
+                    
+                    if (reactor.stability < 50) {
+                        stabilityStatus.style.color = '#ff3300';
+                    } else if (reactor.stability < 80) {
+                        stabilityStatus.style.color = '#ffff00';
+                    } else {
+                        stabilityStatus.style.color = '#32cd32';
+                    }
+                }
+                
+                // Update power display
+                const powerValue = document.getElementById('power-value');
+                if (powerValue) powerValue.textContent = `${Math.round((reactor.targetPower / MAX_POWER) * 100)}%`;
+                
+                // Update additional data readouts
+                const fuelStatus = document.getElementById('fuel-status');
+                const turbineStatus = document.getElementById('turbine-status');
+                const rodPosition = document.getElementById('rod-position');
+                const operationMode = document.getElementById('operation-mode');
+                
+                if (fuelStatus) fuelStatus.textContent = `${Math.round(reactor.fuelRemaining)}%`;
+                if (turbineStatus) turbineStatus.textContent = `${Math.round(reactor.turbineRPM)} об/мин`;
+                if (rodPosition) rodPosition.textContent = `${100 - reactor.controlRodsPosition}%`;
+                if (operationMode) operationMode.textContent = reactor.operationMode;
+                
+                // Update additional meters
+                const radiationMeterNeedle = document.getElementById('radiation-meter-needle');
+                const neutronMeterNeedle = document.getElementById('neutron-meter-needle');
+                const radiationMeterValue = document.getElementById('radiation-meter-value');
+                const neutronMeterValue = document.getElementById('neutron-meter-value');
+                
+                if (radiationMeterNeedle) 
+                    radiationMeterNeedle.style.transform = `rotate(${(Math.log10(reactor.radiationLevel + 1) / Math.log10(1001)) * 180}deg)`;
+                if (neutronMeterNeedle)
+                    neutronMeterNeedle.style.transform = `rotate(${(reactor.neutronFlux / 1000) * 180}deg)`;
+                
+                if (radiationMeterValue) radiationMeterValue.textContent = `${reactor.radiationLevel.toFixed(1)} мкЗв/ч`;
+                if (neutronMeterValue) neutronMeterValue.textContent = `${Math.round(reactor.neutronFlux)} н/с`;
+                
+                // Update additional indicators
+                const radiationIndicator = document.getElementById('radiation-indicator');
+                const fuelIndicator = document.getElementById('fuel-indicator');
+                const turbineIndicator = document.getElementById('turbine-indicator');
+                
+                if (radiationIndicator) {
+                    if (reactor.radiationLevel > 100) {
+                        radiationIndicator.classList.add('active');
+                    } else {
+                        radiationIndicator.classList.remove('active');
+                    }
+                }
+                
+                if (fuelIndicator) {
+                    if (reactor.fuelRemaining < 20) {
+                        fuelIndicator.classList.remove('active');
+                    } else {
+                        fuelIndicator.classList.add('active');
+                    }
+                }
+                
+                if (turbineIndicator) {
+                    if (reactor.turbineRPM > 100) {
+                        turbineIndicator.classList.add('active');
+                    } else {
+                        turbineIndicator.classList.remove('active');
+                    }
+                }
+                
+                // Update water level
+                updateWaterLevel();
+                
+            } catch (e) {
+                console.error("Error updating UI:", e);
+            }
+        }
+        
+        // Trigger random events
+        function triggerRandomEvent() {
+            if (reactor.running && Math.random() < 0.3) { // 30% chance every 30 seconds when running
+                const possibleEvents = randomEvents.filter(event => Math.random() < event.probability);
+                
+                if (possibleEvents.length > 0) {
+                    const event = possibleEvents[Math.floor(Math.random() * possibleEvents.length)];
+                    event.effect();
+                }
+            }
+        }
+        
+        // Helper function for random integers
+        function getRandomInt(min, max) {
+            return Math.floor(Math.random() * (max - min + 1)) + min;
+        }
+        
+        // Animation keyframes
+        const styleSheet = document.createElement('style');
+        styleSheet.textContent = `
+            @keyframes neutron-move {
+                0% { transform: translate(0, 0); opacity: 0; }
+                10% { opacity: 0.7; }
+                100% { transform: translate(var(--moveX), var(--moveY)); opacity: 0; }
+            }
+            
+            @keyframes shake {
+                0% { transform: translate(0, 0); }
+                25% { transform: translate(5px, 5px); }
+                50% { transform: translate(-5px, -5px); }
+                75% { transform: translate(-5px, 5px); }
+                100% { transform: translate(5px, -5px); }
+            }
+        `;
+        document.head.appendChild(styleSheet);
+        
+        // Fix for DOM ready check
+        document.addEventListener('DOMContentLoaded', function() {
+            // Try to create polyhedron first
+            try {
+                createPolyhedron();
+            } catch (e) {
+                console.error("Error creating polyhedron:", e);
+            }
+            
+            // Then initialize the interface
+            try {
+                initInterface();
+            } catch (e) {
+                console.error("Error initializing interface:", e);
+            }
+        });
+    </script>
+</body>
+</html>
